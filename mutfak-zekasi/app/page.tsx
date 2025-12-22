@@ -1,14 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
 import ProfileForm from '@/components/ProfileForm';
 import RecipeCard from '@/components/RecipeCard';
 import NutrientBar from '@/components/NutrientBar';
 import BottomNav from '@/components/BottomNav';
 import { getSmartRecipes } from '@/actions/generateRecipe';
 import { supabase } from '@/lib/supabaseClient';
-import { getUserId } from '@/lib/auth'; // 👈 Kimlik fonksiyonunu ekledik
+import { getUserId } from '@/lib/auth';
 
 export default function Home() {
   const [ingredients, setIngredients] = useState('');
@@ -20,37 +19,19 @@ export default function Home() {
 
   useEffect(() => {
     async function loadUserData() {
-      const uId = getUserId(); // 👈 Cihaz kimliğini al
-
-      // 1. Sadece BU CİHAZA ait profili çek
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', uId) 
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-
+      const uId = getUserId();
+      const { data: profile } = await supabase.from('profiles').select('*').eq('user_id', uId).order('created_at', { ascending: false }).limit(1).single();
       if (profile) {
         setCalorieTarget(profile.daily_calorie_target);
         setUserName(profile.name);
       }
-
-      // 2. Sadece BU CİHAZA ait bugünkü yemekleri çek
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-
-      const { data: meals } = await supabase
-        .from('meal_history')
-        .select('calories')
-        .eq('user_id', uId) // 👈 Filtrele
-        .gte('created_at', today.toISOString());
-
+      const { data: meals } = await supabase.from('meal_history').select('calories').eq('user_id', uId).gte('created_at', today.toISOString());
       if (meals) {
         const total = meals.reduce((acc, curr) => acc + Number(curr.calories), 0);
         setDailyTotal(total);
       }
-
       const savedLocalRecipes = localStorage.getItem('lastRecipes');
       if (savedLocalRecipes) setRecipes(JSON.parse(savedLocalRecipes));
     }
@@ -60,7 +41,7 @@ export default function Home() {
   const handleSaveMeal = async (recipe: any) => {
     try {
       await supabase.from('meal_history').insert([{
-        user_id: getUserId(), // 👈 Kimliği damgala
+        user_id: getUserId(),
         recipe_name: recipe.name,
         calories: Number(recipe.calories),
         protein: Number(recipe.protein),
@@ -75,7 +56,7 @@ export default function Home() {
   const handleBookmark = async (recipe: any) => {
     try {
       await supabase.from('saved_recipes').insert([{
-        user_id: getUserId(), // 👈 Kimliği damgala
+        user_id: getUserId(),
         user_name: userName,
         name: recipe.name,
         description: recipe.description,
@@ -103,54 +84,67 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen pb-32 bg-slate-50 w-full overflow-x-hidden">
-      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-xl border-b border-slate-100 pt-12 pb-4 px-6 shadow-[0_2px_15px_rgba(0,0,0,0.03)]">
+    <div className="min-h-screen pb-32 bg-slate-50 w-full overflow-x-hidden font-sans">
+      <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-lg border-b border-slate-200/60 pt-12 pb-4 px-6 shadow-sm">
         <div className="flex justify-between items-end">
           <div>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Mutfak Asistanı</p>
+            <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1 flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Asistanın Hazır
+            </p>
             <h1 className="text-3xl font-black text-slate-900 tracking-tighter leading-none uppercase whitespace-pre-line">
               {userName ? `Selam,\n${userName}` : "MUTFAK\nZEKASI"}
             </h1>
           </div>
           {userName && (
-             <div className="text-right">
-                <span className="block text-3xl font-black text-emerald-600 leading-none">{calorieTarget}</span>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Hedef Kcal</span>
+             <div className="text-right bg-emerald-50 px-3 py-2 rounded-2xl border border-emerald-100">
+                <span className="block text-2xl font-black text-emerald-700 leading-none">{calorieTarget}</span>
+                <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-wider">Hedef</span>
              </div>
           )}
         </div>
       </header>
 
       <main className="w-full px-5 py-6 space-y-8">
-        <div className="transform scale-105 origin-top">
+        <div className="transform scale-105 origin-top drop-shadow-sm">
            <NutrientBar current={dailyTotal} target={calorieTarget} />
         </div>
         
         {calorieTarget === 0 ? (
           <ProfileForm onCalculate={(t, n) => { setCalorieTarget(t); setUserName(n); }} />
         ) : (
-          <div className="bg-white border border-slate-100 p-5 rounded-3xl flex justify-between items-center shadow-sm">
-            <div className="flex items-center gap-3">
-               <div className="bg-emerald-100 p-2 rounded-full text-xl">⚖️</div>
+          <div className="bg-gradient-to-br from-white to-slate-50 border border-slate-100 p-5 rounded-3xl flex justify-between items-center shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
+            <div className="flex items-center gap-4">
+               <div className="bg-emerald-100/50 p-3 rounded-full text-2xl shadow-inner">⚖️</div>
                <div>
                  <p className="text-sm font-black text-slate-800 uppercase tracking-tight">Profilin Aktif</p>
-                 <p className="text-xs font-medium text-slate-400 mt-0.5">Sana özel veriler filtrelendi.</p>
+                 <p className="text-xs font-medium text-slate-400 mt-0.5">Sana özel filtreleme açık.</p>
                </div>
             </div>
-            <button onClick={() => setCalorieTarget(0)} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold uppercase">Düzenle ✏️</button>
+            <button onClick={() => setCalorieTarget(0)} className="w-10 h-10 flex items-center justify-center bg-white border border-slate-200 text-slate-600 rounded-full hover:bg-slate-50 transition-all shadow-sm">
+              ✏️
+            </button>
           </div>
         )}
         
-        <div className="bg-white p-6 rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-slate-100 relative overflow-hidden">
+        {/* MALZEME GİRİŞ KARTI: Daha belirgin gölge ve renkler */}
+        <div className="bg-white p-6 rounded-[2.5rem] shadow-[0_15px_40px_rgba(0,0,0,0.08)] border border-slate-100 relative overflow-hidden group">
+          <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-emerald-400 via-teal-500 to-emerald-600" />
+          
           <textarea 
-            className="w-full p-0 bg-transparent border-none text-slate-800 font-bold placeholder:text-slate-300 outline-none resize-none text-xl min-h-[100px]"
+            className="w-full p-0 bg-transparent border-none text-slate-800 font-bold placeholder:text-slate-300 outline-none resize-none text-2xl min-h-[100px] leading-tight"
             rows={3}
             placeholder="Dolapta ne var?"
             value={ingredients}
             onChange={(e) => setIngredients(e.target.value)}
           />
-          <button onClick={handleFindRecipes} disabled={loading || calorieTarget === 0} className="w-full mt-6 h-16 bg-slate-900 text-white font-black rounded-2xl shadow-xl uppercase tracking-[0.2em] text-sm">
-            {loading ? "ŞEF DÜŞÜNÜYOR..." : "TARİFLERİ OLUŞTUR ✨"}
+          
+          {/* BUTON: Düz siyah yerine Canlı Gradient */}
+          <button 
+            onClick={handleFindRecipes} 
+            disabled={loading || calorieTarget === 0} 
+            className="w-full mt-6 h-16 bg-gradient-to-r from-slate-900 to-slate-800 hover:from-emerald-600 hover:to-teal-600 text-white font-black rounded-2xl shadow-xl shadow-slate-200 active:scale-[0.98] transition-all uppercase tracking-[0.2em] text-sm flex items-center justify-center gap-2"
+          >
+            {loading ? "ŞEF DÜŞÜNÜYOR..." : <>TARİFLERİ OLUŞTUR <span className="text-xl">✨</span></>}
           </button>
         </div>
 
