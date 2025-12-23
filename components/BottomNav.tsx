@@ -2,43 +2,47 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
+/**
+ * Profesyonel Mobil & PC Uyumlu Navbar
+ * - Turuncu nokta kaldırıldı.
+ * - Karakter hataları düzeltildi.
+ * - Glassmorphism efekti eklendi.
+ */
 export default function BottomNav() {
   const pathname = usePathname();
   
-  const navs = [
-    { n: 'Mutfak', p: '/', i: '🍳' },
-    { n: 'Defter', p: '/notebook', i: '📒' },
-    { n: 'Günlük', p: '/diary', i: '📊' }
+  const navItems = [
+    { name: 'Mutfak', path: '/', icon: '🍳' },
+    { name: 'Defter', path: '/notebook', icon: '📖' },
+    { name: 'Günlük', path: '/diary', icon: '📓' },
   ];
 
   return (
-    // Container: Yüksekliği artırdık, gölgeyi güçlendirdik, border'ı netleştirdik
-    <div className="fixed bottom-0 left-0 w-full bg-white border-t border-slate-200 shadow-[0_-10px_30px_rgba(0,0,0,0.08)] z-[100] lg:hidden">
-      
-      {/* h-24: Daha yüksek bir alan (iPhone Home çubuğu için yer açar) */}
-      <nav className="flex justify-around items-start h-24 pt-3">
-        {navs.map((n) => {
-          const isActive = pathname === n.p;
+    <div className="fixed bottom-8 left-0 right-0 px-8 z-50">
+      <nav className="max-w-md mx-auto bg-white/80 backdrop-blur-xl rounded-[2.5rem] p-3 flex justify-around items-center shadow-[0_20px_50px_rgba(0,0,0,0.1)] border border-white/50">
+        {navItems.map((item) => {
+          const active = pathname === item.path;
+          
           return (
             <Link 
-              key={n.p} 
-              href={n.p} 
-              className="group w-full flex flex-col items-center gap-1 active:scale-95 transition-transform"
+              key={item.path} 
+              href={item.path} 
+              className="relative flex flex-col items-center py-2 px-6 transition-all duration-300"
             >
-              {/* İkon Kutusu: Aktifse arkasında hafif bir hare oluşur */}
-              <div className={`relative p-1.5 rounded-2xl transition-all duration-300 ${isActive ? 'bg-emerald-50 -translate-y-1' : ''}`}>
-                <span className={`text-3xl block transition-all ${isActive ? 'scale-110 grayscale-0' : 'grayscale opacity-60'}`}>
-                  {n.i}
-                </span>
-              </div>
-
-              {/* Metin: Çok daha okunaklı, kalın ve belirgin */}
-              <span className={`text-[11px] font-black uppercase tracking-wider transition-colors ${isActive ? 'text-emerald-800' : 'text-slate-400'}`}>
-                {n.n}
+              {/* Aktiflik Arka Planı (Yumuşak dolgu) */}
+              {active && (
+                <div className="absolute inset-0 bg-slate-100/90 rounded-2xl -z-10 animate-in fade-in zoom-in duration-300" />
+              )}
+              
+              {/* İkon - Turuncu nokta yok, sadece boyut ve opaklık değişimi */}
+              <span className={`text-2xl transition-all duration-300 ${active ? 'scale-110 -translate-y-0.5' : 'grayscale opacity-40 hover:opacity-70'}`}>
+                {item.icon}
               </span>
               
-              {/* Aktiflik Noktası (Opsiyonel ama şık durur) */}
-              <div className={`w-1.5 h-1.5 rounded-full mt-1 transition-all ${isActive ? 'bg-emerald-600' : 'bg-transparent'}`} />
+              {/* Yazı */}
+              <span className={`text-[10px] mt-1 font-black uppercase tracking-widest transition-colors duration-300 ${active ? 'text-slate-900' : 'text-slate-400'}`}>
+                {item.name}
+              </span>
             </Link>
           );
         })}
