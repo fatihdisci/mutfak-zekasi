@@ -3,20 +3,32 @@
 interface RecipeDetailProps {
   recipe: any;
   onClose: () => void;
-  onBookmark: () => void; // Yeni özellik: Kaydetme fonksiyonu
+  onBookmark: () => void;
 }
 
 export default function RecipeDetail({ recipe, onClose, onBookmark }: RecipeDetailProps) {
   if (!recipe) return null;
 
-  // Veri garantiye alma
-  const title = recipe.title || recipe.name || "İsimsiz Tarif";
-  const calories = recipe.calories || 0;
-  const protein = recipe.protein || 0;
-  const carbs = recipe.carbs || 0;
-  const fats = recipe.fats || 0;
-  const ingredients = Array.isArray(recipe.ingredients) ? recipe.ingredients : [];
-  const instructions = Array.isArray(recipe.instructions) ? recipe.instructions : [];
+  // Veri eşleştirme (Mapping) - Hem İngilizce hem Türkçe anahtarları kontrol eder
+  const title = recipe.title || recipe.name || recipe.yemek_adi || "İsimsiz Tarif";
+  const calories = recipe.calories || recipe.kalori || 0;
+  
+  // Besin Değerleri
+  const protein = recipe.protein || "0g";
+  const carbs = recipe.carbs || recipe.karbonhidrat || "0g";
+  const fats = recipe.fats || recipe.yag || "0g";
+
+  // Malzemeler (ingredients veya malzemeler)
+  let ingredients = [];
+  if (Array.isArray(recipe.ingredients)) ingredients = recipe.ingredients;
+  else if (Array.isArray(recipe.malzemeler)) ingredients = recipe.malzemeler;
+
+  // Yapılışı (instructions veya steps veya yapilisi)
+  let instructions = [];
+  if (Array.isArray(recipe.instructions)) instructions = recipe.instructions;
+  else if (Array.isArray(recipe.steps)) instructions = recipe.steps;
+  else if (Array.isArray(recipe.yapilisi)) instructions = recipe.yapilisi;
+  else if (Array.isArray(recipe.hazirlanisi)) instructions = recipe.hazirlanisi;
 
   return (
     <div className="fixed inset-0 z-[100] bg-slate-50 overflow-y-auto animate-in fade-in zoom-in duration-300">
@@ -27,7 +39,6 @@ export default function RecipeDetail({ recipe, onClose, onBookmark }: RecipeDeta
           {title}
         </h2>
         <div className="flex gap-3">
-          {/* DEFTERE EKLE BUTONU */}
           <button 
             onClick={() => { onBookmark(); onClose(); }}
             className="flex items-center gap-2 bg-emerald-100 text-emerald-700 px-4 py-2 rounded-full font-black text-xs uppercase tracking-wider hover:bg-emerald-200 transition-colors"
@@ -35,8 +46,6 @@ export default function RecipeDetail({ recipe, onClose, onBookmark }: RecipeDeta
             <span>🔖</span>
             <span className="hidden sm:inline">Deftere Ekle</span>
           </button>
-          
-          {/* KAPAT BUTONU */}
           <button 
             onClick={onClose}
             className="w-10 h-10 flex items-center justify-center bg-slate-900 text-white rounded-full shadow-lg active:scale-90 transition-all"
@@ -56,15 +65,15 @@ export default function RecipeDetail({ recipe, onClose, onBookmark }: RecipeDeta
 
         <div className="grid grid-cols-3 gap-3">
           <div className="bg-white p-4 rounded-3xl text-center border border-slate-100 shadow-sm">
-            <span className="block text-2xl font-black text-slate-800">{protein}</span>
+            <span className="block text-xl font-black text-slate-800">{protein}</span>
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Protein</span>
           </div>
           <div className="bg-white p-4 rounded-3xl text-center border border-slate-100 shadow-sm">
-            <span className="block text-2xl font-black text-slate-800">{carbs}</span>
+            <span className="block text-xl font-black text-slate-800">{carbs}</span>
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Karb</span>
           </div>
           <div className="bg-white p-4 rounded-3xl text-center border border-slate-100 shadow-sm">
-            <span className="block text-2xl font-black text-slate-800">{fats}</span>
+            <span className="block text-xl font-black text-slate-800">{fats}</span>
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Yağ</span>
           </div>
         </div>
@@ -83,8 +92,8 @@ export default function RecipeDetail({ recipe, onClose, onBookmark }: RecipeDeta
               ))}
             </ul>
           ) : (
-            <div className="text-center py-8 text-slate-400 text-sm font-bold bg-slate-50 rounded-2xl">
-              Malzeme listesi yüklenemedi.
+            <div className="text-center py-8 text-slate-400 text-sm font-bold bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+              Malzeme bilgisi çekilemedi.
             </div>
           )}
         </section>
@@ -110,8 +119,8 @@ export default function RecipeDetail({ recipe, onClose, onBookmark }: RecipeDeta
                 </div>
               ))
             ) : (
-              <div className="text-center py-8 text-slate-400 text-sm font-bold bg-slate-50 rounded-2xl">
-                Hazırlanış adımları yüklenemedi.
+              <div className="text-center py-8 text-slate-400 text-sm font-bold bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                Hazırlanış adımları çekilemedi.
               </div>
             )}
           </div>
