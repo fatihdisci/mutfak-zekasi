@@ -2,25 +2,24 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import ProfileForm from '@/components/ProfileForm';
-import RecipeCard from '@/components/RecipeCard';
-import RecipeDetail from '@/components/RecipeDetail';
-import NutrientBar from '@/components/NutrientBar';
-import BottomNav from '@/components/BottomNav';
-import Login from '@/components/Login';
-import { getSmartRecipes } from '@/actions/generateRecipe';
-import { supabase } from '@/lib/supabaseClient';
 
-// --- Yeni Şık AI Loading Animasyonu ---
-// Bu bileşen, butonun içinde "Zeka Pişiriyor" efekti yaratır.
+// --- DÜZELTME: @ yerine göreceli (relative) yollar kullanıldı ---
+// Bu yöntem Netlify'ın klasör yolunu kaybetmesini %100 engeller.
+import ProfileForm from '../components/ProfileForm';
+import RecipeCard from '../components/RecipeCard';
+import RecipeDetail from '../components/RecipeDetail';
+import NutrientBar from '../components/NutrientBar';
+import BottomNav from '../components/BottomNav';
+import Login from '../components/Login';
+import { getSmartRecipes } from '../actions/generateRecipe';
+import { supabase } from '../lib/supabaseClient'; 
+
+// --- Custom Inline SVG Icons (Tekrar ekledim, silinmemeli) ---
 const AILoading = () => (
   <div className="flex items-center gap-4">
     <div className="relative flex items-center justify-center">
-      {/* Dönen Dış Halka */}
       <div className="w-8 h-8 border-2 border-emerald-500/20 border-t-emerald-400 rounded-full animate-spin"></div>
-      {/* Arka Plan Glow (Işıltı) Efekti */}
       <div className="absolute inset-0 bg-emerald-500/30 blur-xl animate-pulse rounded-full"></div>
-      {/* Mutfak Robotu/Zeka Simgesi */}
       <span className="absolute text-sm animate-bounce">🤖</span>
     </div>
     <div className="flex flex-col items-start leading-none">
@@ -39,12 +38,15 @@ export default function Home() {
   const [session, setSession] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
+  // Veri State'leri
   const [ingredients, setIngredients] = useState('');
   const [recipes, setRecipes] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [dailyTotal, setDailyTotal] = useState(0);
   const [calorieTarget, setCalorieTarget] = useState(0);
   const [userName, setUserName] = useState('');
+  
+  // Detay Modali için State
   const [selectedRecipe, setSelectedRecipe] = useState<any>(null);
 
   useEffect(() => {
@@ -52,35 +54,51 @@ export default function Home() {
       const { data: { session } } = await supabase.auth.getSession();
       setSession(session);
       setAuthLoading(false);
+
       if (!session) return;
+
       const uId = session.user.id;
+
+      // Profil bilgisini çek
       const { data: profile } = await supabase.from('profiles').select('*').eq('user_id', uId).maybeSingle();
       if (profile) {
         setCalorieTarget(profile.daily_calorie_target);
         setUserName(profile.name);
       }
+
+      // Bugünün kalori toplamını çek
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const { data: meals } = await supabase.from('meal_history').select('calories').eq('user_id', uId).gte('created_at', today.toISOString());
       if (meals) {
         setDailyTotal(meals.reduce((acc, curr) => acc + Number(curr.calories), 0));
       }
+
+      // Local storage'dan eski verileri yükle
       if (ingredients === '') {
           const localIng = localStorage.getItem('current_ingredients');
           if (localIng) setIngredients(localIng);
       }
+
       const localRecipes = localStorage.getItem('last_recipes_results');
-      if (localRecipes) setRecipes(JSON.parse(localRecipes));
+      if (localRecipes) {
+        setRecipes(JSON.parse(localRecipes));
+      }
     }
     checkUserAndLoad();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleFindRecipes = async () => {
     if (!ingredients) return alert("Lütfen malzeme girin!");
     setLoading(true);
+    
+    // Malzemeleri kaydet
     localStorage.setItem('current_ingredients', ingredients);
+
     try {
+      // AI Action çağır
       const data = await getSmartRecipes(ingredients.split(','), 'normal');
+      
       if (data && !data.error) {
         setRecipes(data);
         localStorage.setItem('last_recipes_results', JSON.stringify(data));
@@ -88,6 +106,7 @@ export default function Home() {
         alert(data?.error || "Tarif üretilemedi.");
       }
     } catch (err) { 
+      console.error(err);
       alert("Bir hata oluştu!"); 
     } finally { 
       setLoading(false); 
@@ -102,22 +121,33 @@ export default function Home() {
     }
   };
 
+  // Helper Functions
   const handleSaveMeal = async (recipe: any) => {
     if (!session) return;
     try {
-      const cleanCalories = parseInt(recipe.calories) || 0;
+      const cleanCalories = typeof recipe.calories === 'number' ? recipe.calories : parseInt(recipe.calories) || 0;
+      const cleanProtein = parseInt(recipe.protein) || 0;
+      const cleanCarbs = parseInt(recipe.carbs) || 0;
+      const cleanFats = parseInt(recipe.fats) || 0;
+
       const { error } = await supabase.from('meal_history').insert({
         user_id: session.user.id,
-        name: recipe.name,
+        name: recipe.title || recipe.name,
         calories: cleanCalories,
-        protein: parseInt(recipe.protein) || 0,
-        carbs: parseInt(recipe.carbs) || 0,
-        fats: parseInt(recipe.fats) || 0
+        protein: cleanProtein,
+        carbs: cleanCarbs,
+        fats: cleanFats
       });
+
       if (error) throw error;
+      
       alert("Öğün günlüğüne eklendi! 🎉");
       setDailyTotal(prev => prev + cleanCalories);
-    } catch (e: any) { alert("Hata: " + e.message); }
+
+    } catch (e: any) {
+      console.error(e);
+      alert("Kaydedilirken hata oluştu: " + e.message);
+    }
   };
 
   const handleBookmark = async (recipe: any) => {
@@ -126,11 +156,15 @@ export default function Home() {
       const { error } = await supabase.from('saved_recipes').insert({
         user_id: session.user.id,
         recipe_data: recipe,
-        title: recipe.name
+        title: recipe.title || recipe.name
       });
+
       if (error) throw error;
       alert("Tarif favorilere eklendi! ⭐");
-    } catch (e: any) { alert("Hata: " + e.message); }
+    } catch (e: any) {
+      console.error(e);
+      alert("Favorilere eklenirken hata: " + e.message);
+    }
   };
 
   if (authLoading) return <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-400 font-bold uppercase tracking-widest animate-pulse">Yükleniyor...</div>;
@@ -138,6 +172,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen pb-40 bg-slate-50 font-sans relative">
+      {/* HEADER */}
       <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-100 px-6 pt-12 pb-6 shadow-sm flex justify-between items-end">
         <div>
           <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1 flex items-center gap-1">
@@ -153,6 +188,8 @@ export default function Home() {
       </header>
 
       <main className="px-6 py-8 space-y-8 max-w-xl mx-auto">
+        
+        {/* PROFİL & HEDEF KARTI */}
         <section>
           {calorieTarget === 0 ? (
             <ProfileForm onCalculate={(t, n) => { setCalorieTarget(t); setUserName(n); }} />
@@ -173,8 +210,12 @@ export default function Home() {
           )}
         </section>
 
-        <section><NutrientBar current={dailyTotal} target={calorieTarget} /></section>
+        {/* KALORİ BARI */}
+        <section>
+          <NutrientBar current={dailyTotal} target={calorieTarget} />
+        </section>
         
+        {/* MALZEME GİRİŞİ */}
         <section className="bg-white p-6 rounded-[2.5rem] shadow-xl border border-slate-100">
           <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Malzeme Girişi</label>
           <textarea 
@@ -188,7 +229,6 @@ export default function Home() {
             disabled={loading} 
             className="w-full mt-4 h-16 bg-slate-900 hover:bg-slate-800 text-white font-black rounded-2xl shadow-lg shadow-slate-200 transition-all uppercase tracking-widest text-xs flex items-center justify-center gap-2 group disabled:opacity-90 overflow-hidden"
           >
-            {/* KOŞULLU RENDERING: Loading varsa animasyon, yoksa metin */}
             {loading ? (
               <AILoading />
             ) : (
@@ -200,21 +240,38 @@ export default function Home() {
           </button>
         </section>
 
+        {/* TARİF SONUÇLARI */}
         {recipes.length > 0 && (
-          <section className="space-y-6">
-            <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest px-2">
-              <span>🕒</span> Sonuçlar ({recipes.length})
-            </h2>
+          <section className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="flex justify-between items-center px-2">
+              <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                <span>🕒</span> Sonuçlar ({recipes.length})
+              </h2>
+            </div>
             <div className="space-y-6">
               {recipes.map((r, i) => (
-                <RecipeCard key={i} recipe={r} onSave={() => handleSaveMeal(r)} onBookmark={() => handleBookmark(r)} onDetail={() => setSelectedRecipe(r)} />
+                <RecipeCard 
+                  key={i} 
+                  recipe={r} 
+                  onSave={() => handleSaveMeal(r)} 
+                  onBookmark={() => handleBookmark(r)}
+                  onDetail={() => setSelectedRecipe(r)}
+                />
               ))}
             </div>
           </section>
         )}
       </main>
 
-      {selectedRecipe && <RecipeDetail recipe={selectedRecipe} onClose={() => setSelectedRecipe(null)} />}
+      {/* DETAY MODALI */}
+      {selectedRecipe && (
+        <RecipeDetail 
+          recipe={selectedRecipe} 
+          onClose={() => setSelectedRecipe(null)} 
+        />
+      )}
+
+      {/* ALT NAVİGASYON */}
       <BottomNav />
     </div>
   );
