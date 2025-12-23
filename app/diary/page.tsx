@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabaseClient';
-import BottomNav from '@/components/BottomNav';
-import { getUserId } from '@/lib/auth';
 import Link from 'next/link';
+// --- DÜZELTME: @ yerine göreceli (relative) yollar ---
+import { supabase } from '../../lib/supabaseClient';
+import BottomNav from '../../components/BottomNav';
 
 export default function Diary() {
   const [history, setHistory] = useState<any[]>([]);
@@ -12,8 +12,16 @@ export default function Diary() {
 
   useEffect(() => {
     async function fetchHistory() {
-      const uId = getUserId();
-      const { data } = await supabase.from('meal_history').select('*').eq('user_id', uId).order('created_at', { ascending: false });
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const uId = session.user.id;
+
+      const { data } = await supabase
+        .from('meal_history')
+        .select('*')
+        .eq('user_id', uId)
+        .order('created_at', { ascending: false });
+        
       if (data) setHistory(data);
       setLoading(false);
     }
@@ -42,7 +50,7 @@ export default function Diary() {
                 <div className="absolute -left-[31px] top-1/2 -translate-y-1/2 w-4 h-4 bg-white border-4 border-emerald-400 rounded-full shadow-sm z-10"></div>
 
                 <div className="flex flex-col gap-1">
-                  <h3 className="font-black text-slate-800 text-sm uppercase leading-tight tracking-tight">{item.recipe_name}</h3>
+                  <h3 className="font-black text-slate-800 text-sm uppercase leading-tight tracking-tight">{item.name || "İsimsiz Öğün"}</h3>
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter flex items-center gap-1">
                     <span>🕒 {new Date(item.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</span>
                     <span className="text-slate-300">•</span>
