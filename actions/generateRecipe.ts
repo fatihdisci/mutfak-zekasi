@@ -67,6 +67,9 @@ export async function getSmartRecipes(ingredients: string[], type: string) {
 
   } catch (error: any) {
     console.error("AI Genel Hatası:", error);
-    return { error: "Tarif üretilirken teknik bir sorun oluştu." };
+    
+    // HATA AYIKLAMA İÇİN: Gerçek hatayı ekrana yansıtıyoruz
+    // Normalde kullanıcıya bu kadar detay verilmez ama sorunu bulmak için şart.
+    return { error: `Teknik Hata Detayı: ${error.message || error.toString()}` };
   }
 }
