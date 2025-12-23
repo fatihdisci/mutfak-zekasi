@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-// --- İçe Aktarmalar (Dosya Konumuna Göre) ---
+// --- Bileşen İçe Aktarmaları ---
 import ProfileForm from '../components/ProfileForm';
 import RecipeCard from '../components/RecipeCard';
 import RecipeDetail from '../components/RecipeDetail';
@@ -12,7 +12,7 @@ import Login from '../components/Login';
 import { getSmartRecipes } from '../actions/generateRecipe';
 import { supabase } from '../lib/supabaseClient'; 
 
-// --- Custom Inline SVG Icons ---
+// --- Yapay Zeka Yükleniyor Animasyonu ---
 const AILoading = () => (
   <div className="flex items-center gap-4">
     <div className="relative flex items-center justify-center">
@@ -57,8 +57,13 @@ export default function Home() {
 
       const uId = session.user.id;
 
-      // Profil bilgisini çek
-      const { data: profile } = await supabase.from('profiles').select('*').eq('user_id', uId).maybeSingle();
+      // --- KRİTİK DÜZELTME: Profil çekme sorgusu 'id' üzerinden yapılır ---
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', uId) 
+        .maybeSingle();
+
       if (profile) {
         setCalorieTarget(profile.daily_calorie_target);
         setUserName(profile.name);
@@ -67,16 +72,19 @@ export default function Home() {
       // Bugünün kalori toplamını çek
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      const { data: meals } = await supabase.from('meal_history').select('calories').eq('user_id', uId).gte('created_at', today.toISOString());
+      const { data: meals } = await supabase
+        .from('meal_history')
+        .select('calories')
+        .eq('user_id', uId)
+        .gte('created_at', today.toISOString());
+
       if (meals) {
-        setDailyTotal(meals.reduce((acc, curr) => acc + Number(curr.calories), 0));
+        setDailyTotal(meals.reduce((acc, curr) => acc + Number(curr.calories || 0), 0));
       }
 
       // Local storage'dan eski verileri yükle
-      if (ingredients === '') {
-          const localIng = localStorage.getItem('current_ingredients');
-          if (localIng) setIngredients(localIng);
-      }
+      const localIng = localStorage.getItem('current_ingredients');
+      if (localIng) setIngredients(localIng);
 
       const localRecipes = localStorage.getItem('last_recipes_results');
       if (localRecipes) {
@@ -116,48 +124,37 @@ export default function Home() {
     }
   };
 
-  // --- GÜNCELLENMİŞ KAYDETME FONKSİYONLARI ---
+  // --- KAYDETME VE GÜNLÜKLEME FONKSİYONLARI ---
 
   const handleSaveMeal = async (recipe: any) => {
     if (!session) return;
     try {
-      // TEMİZLİK FONKSİYONU: "20g" -> 20, "500 kcal" -> 500
       const cleanNumber = (val: any) => {
         if (typeof val === 'number') return val;
-        if (!val) return 0;
-        // Sadece rakamları al, gerisini sil
-        const numbers = String(val).replace(/[^0-9]/g, ''); 
+        const numbers = String(val || '0').replace(/[^0-9]/g, ''); 
         return parseInt(numbers) || 0;
       };
 
       const cleanCalories = cleanNumber(recipe.calories);
-      const cleanProtein = cleanNumber(recipe.protein);
-      const cleanCarbs = cleanNumber(recipe.carbs);
-      const cleanFats = cleanNumber(recipe.fats);
 
       const { error } = await supabase.from('meal_history').insert({
         user_id: session.user.id,
         name: recipe.title || recipe.name,
         calories: cleanCalories,
-        protein: cleanProtein,
-        carbs: cleanCarbs,
-        fats: cleanFats,
-        recipe_data: recipe // Tüm tarifi buraya kaydediyoruz (Detaylarda görmek için)
+        protein: cleanNumber(recipe.protein),
+        carbs: cleanNumber(recipe.carbs),
+        fats: cleanNumber(recipe.fats),
+        recipe_data: recipe 
       });
 
-      if (error) {
-        console.error("Supabase Hatası (Öğün):", error);
-        throw new Error(error.message);
-      }
+      if (error) throw error;
       
-      // Kullanıcı Dostu Mesaj
       alert("Ellerine sağlık! 👨‍🍳\nBu yemek günlüğüne başarıyla kaydedildi.");
-      
       setDailyTotal(prev => prev + cleanCalories);
 
     } catch (e: any) {
       console.error(e);
-      alert("Kaydedilirken hata oluştu: " + e.message + "\n(Veritabanı tablosu güncel olmayabilir)");
+      alert("Kaydedilirken hata oluştu: " + e.message);
     }
   };
 
@@ -166,12 +163,12 @@ export default function Home() {
     try {
       const { error } = await supabase.from('saved_recipes').insert({
         user_id: session.user.id,
-        recipe_data: recipe, // JSON olarak tüm tarifi sakla
+        recipe_data: recipe,
         title: recipe.title || recipe.name
       });
 
       if (error) throw error;
-      alert("Tarif deftere kaydedildi! ⭐");
+      alert("Tarif defterine kaydedildi! ⭐");
     } catch (e: any) {
       console.error(e);
       alert("Deftere eklenirken hata: " + e.message);
