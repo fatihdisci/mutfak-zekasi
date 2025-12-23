@@ -1,14 +1,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+// Göreceli (relative) importlar korundu
 import { supabase } from '../../lib/supabaseClient';
 import BottomNav from '../../components/BottomNav';
-import RecipeDetail from '../../components/RecipeDetail'; // Detay Modalı Eklendi
+import RecipeDetail from '../../components/RecipeDetail';
 
 export default function Notebook() {
   const [savedRecipes, setSavedRecipes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedRecipe, setSelectedRecipe] = useState<any>(null); // Seçili tarif state'i
+  const [selectedRecipe, setSelectedRecipe] = useState<any>(null);
 
   useEffect(() => {
     async function fetchSaved() {
@@ -28,8 +29,8 @@ export default function Notebook() {
   }, []);
 
   const handleDelete = async (e: React.MouseEvent, id: number) => {
-    e.stopPropagation(); // Karta tıklamayı engelle
-    if(!confirm("Silinsin mi?")) return;
+    e.stopPropagation();
+    if(!confirm("Bu tarifi defterden silmek istiyor musun?")) return;
     await supabase.from('saved_recipes').delete().eq('id', id);
     setSavedRecipes(prev => prev.filter(r => r.id !== id));
   };
@@ -54,24 +55,52 @@ export default function Notebook() {
               return (
                 <div 
                   key={item.id} 
-                  onClick={() => setSelectedRecipe(recipe)} // Tıklayınca detayı aç
+                  onClick={() => setSelectedRecipe(recipe)}
                   className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col relative group hover:shadow-lg hover:-translate-y-1 transition-all duration-300 cursor-pointer"
                 >
-                   <div className="flex justify-between items-start mb-3 gap-2">
+                   {/* Başlık ve Silme Butonu */}
+                   <div className="flex justify-between items-start mb-4 gap-2">
                       <h3 className="font-black text-slate-800 text-lg uppercase leading-tight">{title}</h3>
-                      <button onClick={(e) => handleDelete(e, item.id)} className="bg-red-50 text-red-500 hover:bg-red-500 hover:text-white w-8 h-8 rounded-full flex items-center justify-center transition-all shadow-sm font-bold text-xs">✕</button>
+                      <button 
+                        onClick={(e) => handleDelete(e, item.id)} 
+                        className="bg-slate-50 text-slate-300 hover:bg-red-500 hover:text-white w-8 h-8 rounded-full flex items-center justify-center transition-all shadow-sm font-bold text-xs shrink-0"
+                      >
+                        ✕
+                      </button>
                    </div>
                    
-                   <p className="text-sm text-slate-500 mb-5 line-clamp-2 font-medium">{recipe.description || "Açıklama yok."}</p>
+                   {/* 1. DEĞİŞİKLİK: Açıklama yoksa bu alan hiç görünmeyecek */}
+                   {recipe.description && (
+                     <p className="text-sm text-slate-500 mb-6 line-clamp-2 font-medium">
+                       {recipe.description}
+                     </p>
+                   )}
                    
-                   <div className="bg-slate-50 p-3 rounded-2xl mb-4 text-[10px] font-black text-slate-400 grid grid-cols-3 gap-1 text-center">
-                      <span>🔥 {recipe.calories || 0}</span>
-                      <span>🥩 {recipe.protein || '0g'}</span>
-                      <span>🍞 {recipe.carbs || '0g'}</span>
+                   {/* 2. DEĞİŞİKLİK: Besin Değerleri Büyütüldü */}
+                   <div className="bg-slate-50 p-4 rounded-2xl mb-4 grid grid-cols-3 gap-2 text-center border border-slate-100/50">
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="text-xl">🔥</span>
+                        <span className="text-sm font-black text-slate-800">{recipe.calories || 0}</span>
+                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">kcal</span>
+                      </div>
+                      
+                      <div className="flex flex-col items-center gap-1 border-l border-slate-100">
+                        <span className="text-xl">🥩</span>
+                        <span className="text-sm font-black text-slate-800">{recipe.protein || '0g'}</span>
+                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Prot</span>
+                      </div>
+                      
+                      <div className="flex flex-col items-center gap-1 border-l border-slate-100">
+                        <span className="text-xl">🍞</span>
+                        <span className="text-sm font-black text-slate-800">{recipe.carbs || '0g'}</span>
+                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Karb</span>
+                      </div>
                    </div>
                    
-                   <div className="mt-auto pt-4 border-t border-slate-50 text-center">
-                     <span className="text-emerald-600 text-xs font-black uppercase tracking-widest">Detayları Gör →</span>
+                   <div className="mt-auto pt-2 text-center">
+                     <span className="text-emerald-500 text-[10px] font-black uppercase tracking-[0.2em] group-hover:tracking-[0.3em] transition-all duration-300">
+                       Detayları Gör →
+                     </span>
                    </div>
                 </div>
               );
@@ -90,7 +119,7 @@ export default function Notebook() {
         <RecipeDetail 
           recipe={selectedRecipe} 
           onClose={() => setSelectedRecipe(null)}
-          onBookmark={() => {}} // Zaten kayıtlı olduğu için boş fonksiyon
+          onBookmark={() => {}}
         />
       )}
       
