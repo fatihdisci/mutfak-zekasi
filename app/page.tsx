@@ -2,9 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-
-// --- DÜZELTME: @ yerine göreceli (relative) yollar kullanıldı ---
-// Bu yöntem Netlify'ın klasör yolunu kaybetmesini %100 engeller.
 import ProfileForm from '../components/ProfileForm';
 import RecipeCard from '../components/RecipeCard';
 import RecipeDetail from '../components/RecipeDetail';
@@ -14,7 +11,7 @@ import Login from '../components/Login';
 import { getSmartRecipes } from '../actions/generateRecipe';
 import { supabase } from '../lib/supabaseClient'; 
 
-// --- Custom Inline SVG Icons (Tekrar ekledim, silinmemeli) ---
+// --- Custom Inline SVG Icons ---
 const AILoading = () => (
   <div className="flex items-center gap-4">
     <div className="relative flex items-center justify-center">
@@ -86,17 +83,14 @@ export default function Home() {
       }
     }
     checkUserAndLoad();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); 
 
   const handleFindRecipes = async () => {
     if (!ingredients) return alert("Lütfen malzeme girin!");
     setLoading(true);
-    
-    // Malzemeleri kaydet
     localStorage.setItem('current_ingredients', ingredients);
 
     try {
-      // AI Action çağır
       const data = await getSmartRecipes(ingredients.split(','), 'normal');
       
       if (data && !data.error) {
@@ -121,32 +115,43 @@ export default function Home() {
     }
   };
 
-  // Helper Functions
+  // --- GÜNCELLENMİŞ KAYDETME FONKSİYONLARI ---
+
   const handleSaveMeal = async (recipe: any) => {
     if (!session) return;
     try {
-      const cleanCalories = typeof recipe.calories === 'number' ? recipe.calories : parseInt(recipe.calories) || 0;
-      const cleanProtein = parseInt(recipe.protein) || 0;
-      const cleanCarbs = parseInt(recipe.carbs) || 0;
-      const cleanFats = parseInt(recipe.fats) || 0;
+      // Verileri temizle (Örn: "20g" -> 20)
+      const parseNumber = (val: any) => {
+        if (typeof val === 'number') return val;
+        if (typeof val === 'string') return parseInt(val.replace(/[^0-9]/g, '')) || 0;
+        return 0;
+      };
+
+      const cleanCalories = parseNumber(recipe.calories);
+      const cleanProtein = parseNumber(recipe.protein);
+      const cleanCarbs = parseNumber(recipe.carbs);
+      const cleanFats = parseNumber(recipe.fats);
 
       const { error } = await supabase.from('meal_history').insert({
         user_id: session.user.id,
         name: recipe.title || recipe.name,
         calories: cleanCalories,
-        protein: cleanProtein,
-        carbs: cleanCarbs,
-        fats: cleanFats
+        protein: cleanProtein, // Bu sütun veritabanında olmalı!
+        carbs: cleanCarbs,     // Bu sütun veritabanında olmalı!
+        fats: cleanFats        // Bu sütun veritabanında olmalı!
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Supabase Hatası:", error);
+        throw new Error(error.message);
+      }
       
       alert("Öğün günlüğüne eklendi! 🎉");
       setDailyTotal(prev => prev + cleanCalories);
 
     } catch (e: any) {
       console.error(e);
-      alert("Kaydedilirken hata oluştu: " + e.message);
+      alert("Kaydedilirken hata oluştu: " + e.message + "\n(Veritabanı tablosu güncel olmayabilir)");
     }
   };
 
@@ -155,12 +160,12 @@ export default function Home() {
     try {
       const { error } = await supabase.from('saved_recipes').insert({
         user_id: session.user.id,
-        recipe_data: recipe,
+        recipe_data: recipe, // JSON olarak tüm tarifi sakla
         title: recipe.title || recipe.name
       });
 
       if (error) throw error;
-      alert("Tarif favorilere eklendi! ⭐");
+      alert("Tarif deftere kaydedildi! ⭐");
     } catch (e: any) {
       console.error(e);
       alert("Favorilere eklenirken hata: " + e.message);
@@ -172,7 +177,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen pb-40 bg-slate-50 font-sans relative">
-      {/* HEADER */}
       <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-100 px-6 pt-12 pb-6 shadow-sm flex justify-between items-end">
         <div>
           <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1 flex items-center gap-1">
@@ -188,8 +192,6 @@ export default function Home() {
       </header>
 
       <main className="px-6 py-8 space-y-8 max-w-xl mx-auto">
-        
-        {/* PROFİL & HEDEF KARTI */}
         <section>
           {calorieTarget === 0 ? (
             <ProfileForm onCalculate={(t, n) => { setCalorieTarget(t); setUserName(n); }} />
@@ -210,12 +212,10 @@ export default function Home() {
           )}
         </section>
 
-        {/* KALORİ BARI */}
         <section>
           <NutrientBar current={dailyTotal} target={calorieTarget} />
         </section>
         
-        {/* MALZEME GİRİŞİ */}
         <section className="bg-white p-6 rounded-[2.5rem] shadow-xl border border-slate-100">
           <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Malzeme Girişi</label>
           <textarea 
@@ -240,7 +240,6 @@ export default function Home() {
           </button>
         </section>
 
-        {/* TARİF SONUÇLARI */}
         {recipes.length > 0 && (
           <section className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="flex justify-between items-center px-2">
@@ -263,16 +262,14 @@ export default function Home() {
         )}
       </main>
 
-      {/* DETAY MODALI */}
       {selectedRecipe && (
         <RecipeDetail 
           recipe={selectedRecipe} 
-          onClose={() => setSelectedRecipe(null)} 
-          onBookmark={() => handleBookmark(selectedRecipe)} // <-- EKLENDİ: Kaydetme yeteneği verildi
+          onClose={() => setSelectedRecipe(null)}
+          onBookmark={() => handleBookmark(selectedRecipe)}
         />
       )}
 
-      {/* ALT NAVİGASYON */}
       <BottomNav />
     </div>
   );
