@@ -4,45 +4,46 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
 
-export async function getSmartRecipes(
-  ingredients: string[], 
-  userHistoryAnalysis: string = 'normal'
-) {
-  // GÜNCELLEME: 'gemini-pro' yerine 'gemini-1.5-flash' kullanıyoruz.
-  // Flash modeli ücretsiz katman için çok daha stabil ve hızlıdır.
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-
-  const prompt = `
-    Sen uzman bir diyetisyen ve şefsin.
-    Elimdeki malzemeler: ${ingredients.join(", ")}. (Tuz, yağ, su var kabul et).
-    
-    Bana tam olarak 3 tarif öner. Çıktıyı SADECE aşağıdaki JSON formatında ver, başka metin yazma:
-    [
-      {
-        "name": "Yemek Adı",
-        "missing_ingredients": ["Eksik1", "Eksik2"],
-        "calories": 500,
-        "protein": 20,
-        "carbs": 30,
-        "fats": 10,
-        "instructions": "Hazırlanışı...",
-        "health_benefit": "Fayda..."
-      }
-    ]
-  `;
-
+export async function getSmartRecipes(ingredients: string[], type: string) {
   try {
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-1.5-flash",
+      generationConfig: { responseMimeType: "application/json" } // JSON formatını zorluyoruz
+    });
+
+    const prompt = `
+      Sen profesyonel bir şef ve diyetisyensin. Elimdeki malzemeler: ${ingredients.join(", ")}.
+      
+      Bana bu malzemelerle yapabileceğim, Türkiye damak tadına uygun 3 farklı yemek tarifi öner.
+      
+      KESİNLİKLE şu JSON formatında yanıt ver (başka metin ekleme):
+      [
+        {
+          "title": "Yemeğin Adı",
+          "calories": 500,
+          "protein": "30g",
+          "carbs": "40g",
+          "fats": "10g",
+          "ingredients": ["1 bardak un", "2 yumurta", "tuz"],
+          "instructions": ["Unu kaba al", "Yumurtayı kır", "Çırp ve pişir"]
+        }
+      ]
+      
+      Notlar:
+      - "ingredients" ve "instructions" kesinlikle Array (Liste) olmalı.
+      - Kalori sadece sayı olsun.
+    `;
+
     const result = await model.generateContent(prompt);
-    const response = await result.response;
+    const response = result.response;
     const text = response.text();
     
-    // JSON temizleme (AI bazen ```json ekler)
-    const cleanJson = text.replace(/```json|```/g, '').trim();
-    return JSON.parse(cleanJson);
+    // JSON parse işlemi
+    const data = JSON.parse(text);
+    return data;
 
-  } catch (error) {
-    // HATA DETAYI: Buradaki hata terminalinde (VS Code) görünecektir.
-    console.error("GEMINI API HATASI DETAYI:", error);
-    return []; 
+  } catch (error: any) {
+    console.error("AI Hatası:", error);
+    return { error: "Tarif üretilirken bir sorun oluştu. Lütfen tekrar dene." };
   }
 }

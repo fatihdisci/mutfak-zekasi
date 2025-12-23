@@ -268,6 +268,7 @@ export default function Home() {
         <RecipeDetail 
           recipe={selectedRecipe} 
           onClose={() => setSelectedRecipe(null)} 
+          onBookmark={() => handleBookmark(selectedRecipe)} // <-- EKLENDİ: Kaydetme yeteneği verildi
         />
       )}
 
