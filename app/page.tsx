@@ -6,14 +6,16 @@ import { useRouter } from 'next/navigation';
 import ProfileForm from '../components/ProfileForm';
 import RecipeCard from '../components/RecipeCard';
 import RecipeDetail from '../components/RecipeDetail';
+import MealAnalysisModal from '../components/MealAnalysisModal'; // Yeni Modal
 import NutrientBar from '../components/NutrientBar';
 import BottomNav from '../components/BottomNav';
 import Login from '../components/Login';
 import { getSmartRecipes } from '../actions/generateRecipe';
+import { analyzeMeal } from '../actions/analyzeMeal'; // Yeni Aksiyon
 import { supabase } from '../lib/supabaseClient'; 
 
 // --- Yapay Zeka Yükleniyor Animasyonu ---
-const AILoading = () => (
+const AILoading = ({ mode }: { mode: 'recipe' | 'meal' }) => (
   <div className="flex items-center gap-4">
     <div className="relative flex items-center justify-center">
       <div className="w-8 h-8 border-2 border-emerald-500/20 border-t-emerald-400 rounded-full animate-spin"></div>
@@ -25,7 +27,7 @@ const AILoading = () => (
         Yapay Zeka
       </span>
       <span className="text-[13px] font-black text-white uppercase tracking-wider">
-        Mutfakta Düşünüyor...
+        {mode === 'recipe' ? 'Tarif Üretiyor...' : 'Besinleri Hesaplıyor...'}
       </span>
     </div>
   </div>
@@ -37,15 +39,19 @@ export default function Home() {
   const [authLoading, setAuthLoading] = useState(true);
 
   // Veri State'leri
-  const [ingredients, setIngredients] = useState('');
+  const [inputText, setInputText] = useState(''); // Ortak input (Malzeme veya Yemek)
   const [recipes, setRecipes] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [dailyTotal, setDailyTotal] = useState(0);
   const [calorieTarget, setCalorieTarget] = useState(0);
   const [userName, setUserName] = useState('');
   
-  // Detay Modali için State
+  // Mod Kontrolü: 'recipe' (Ne Pişirsem) veya 'meal' (Ne Yedim)
+  const [activeTab, setActiveTab] = useState<'recipe' | 'meal'>('recipe');
+  
+  // Modallar için State
   const [selectedRecipe, setSelectedRecipe] = useState<any>(null);
+  const [analysisResult, setAnalysisResult] = useState<any>(null);
 
   useEffect(() => {
     async function checkUserAndLoad() {
@@ -57,7 +63,7 @@ export default function Home() {
 
       const uId = session.user.id;
 
-      // --- KRİTİK DÜZELTME: Profil çekme sorgusu 'id' üzerinden yapılır ---
+      // Profil çekme
       const { data: profile } = await supabase
         .from('profiles')
         .select('*')
@@ -82,9 +88,9 @@ export default function Home() {
         setDailyTotal(meals.reduce((acc, curr) => acc + Number(curr.calories || 0), 0));
       }
 
-      // Local storage'dan eski verileri yükle
+      // Local storage yüklemeleri (Sadece tarif modu için)
       const localIng = localStorage.getItem('current_ingredients');
-      if (localIng) setIngredients(localIng);
+      if (localIng) setInputText(localIng);
 
       const localRecipes = localStorage.getItem('last_recipes_results');
       if (localRecipes) {
@@ -94,13 +100,14 @@ export default function Home() {
     checkUserAndLoad();
   }, []); 
 
+  // --- TARİF ÜRETME FONKSİYONU ---
   const handleFindRecipes = async () => {
-    if (!ingredients) return alert("Lütfen malzeme girin!");
+    if (!inputText) return alert("Lütfen malzeme girin!");
     setLoading(true);
-    localStorage.setItem('current_ingredients', ingredients);
+    localStorage.setItem('current_ingredients', inputText);
 
     try {
-      const data = await getSmartRecipes(ingredients.split(','), 'normal');
+      const data = await getSmartRecipes(inputText.split(','), 'normal');
       
       if (data && !data.error) {
         setRecipes(data);
@@ -116,6 +123,26 @@ export default function Home() {
     }
   };
 
+  // --- YEMEK ANALİZ ETME FONKSİYONU (YENİ) ---
+  const handleAnalyzeMeal = async () => {
+    if (!inputText) return alert("Lütfen ne yediğinizi yazın!");
+    setLoading(true);
+    
+    try {
+      const data = await analyzeMeal(inputText);
+      if (data && !data.error) {
+        setAnalysisResult(data); // Modalı açar
+      } else {
+        alert(data?.error || "Analiz yapılamadı.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Bağlantı hatası.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSignOut = async () => {
     if(confirm("Çıkış yapmak istiyor musun?")) {
         await supabase.auth.signOut();
@@ -124,9 +151,43 @@ export default function Home() {
     }
   };
 
-  // --- KAYDETME VE GÜNLÜKLEME FONKSİYONLARI ---
+  // --- DB KAYIT FONKSİYONLARI ---
 
-  const handleSaveMeal = async (recipe: any) => {
+  // 1. Tariften gelen yemeği kaydet
+  const handleSaveRecipeAsMeal = async (recipe: any) => {
+    await saveMealToDB({
+      name: recipe.title || recipe.name,
+      calories: recipe.calories,
+      protein: recipe.protein,
+      carbs: recipe.carbs,
+      fats: recipe.fats,
+      recipe_data: recipe
+    });
+  };
+
+  // 2. Analizden gelen yemeği kaydet (YENİ)
+  const handleConfirmAnalysis = async () => {
+    if (!analysisResult) return;
+    
+    await saveMealToDB({
+      name: analysisResult.food_name,
+      calories: analysisResult.calories,
+      protein: analysisResult.protein,
+      carbs: analysisResult.carbs,
+      fats: analysisResult.fats,
+      recipe_data: { 
+        description: analysisResult.summary_text, // Özet metni açıklama olarak sakla
+        is_manual_entry: true,
+        original_text: inputText
+      }
+    });
+
+    setAnalysisResult(null); // Modalı kapat
+    setInputText(''); // Girişi temizle
+  };
+
+  // Ortak Veritabanı Kayıt Yardımcısı
+  const saveMealToDB = async (mealData: any) => {
     if (!session) return;
     try {
       const cleanNumber = (val: any) => {
@@ -135,26 +196,26 @@ export default function Home() {
         return parseInt(numbers) || 0;
       };
 
-      const cleanCalories = cleanNumber(recipe.calories);
+      const cleanCalories = cleanNumber(mealData.calories);
 
       const { error } = await supabase.from('meal_history').insert({
         user_id: session.user.id,
-        name: recipe.title || recipe.name,
+        name: mealData.name,
         calories: cleanCalories,
-        protein: cleanNumber(recipe.protein),
-        carbs: cleanNumber(recipe.carbs),
-        fats: cleanNumber(recipe.fats),
-        recipe_data: recipe 
+        protein: cleanNumber(mealData.protein),
+        carbs: cleanNumber(mealData.carbs),
+        fats: cleanNumber(mealData.fats),
+        recipe_data: mealData.recipe_data 
       });
 
       if (error) throw error;
       
-      alert("Ellerine sağlık! 👨‍🍳\nBu yemek günlüğüne başarıyla kaydedildi.");
+      alert("Günlüğe eklendi! 🍏");
       setDailyTotal(prev => prev + cleanCalories);
 
     } catch (e: any) {
       console.error(e);
-      alert("Kaydedilirken hata oluştu: " + e.message);
+      alert("Hata: " + e.message);
     }
   };
 
@@ -171,7 +232,7 @@ export default function Home() {
       alert("Tarif defterine kaydedildi! ⭐");
     } catch (e: any) {
       console.error(e);
-      alert("Deftere eklenirken hata: " + e.message);
+      alert("Hata: " + e.message);
     }
   };
 
@@ -195,6 +256,7 @@ export default function Home() {
       </header>
 
       <main className="px-6 py-8 space-y-8 max-w-xl mx-auto">
+        {/* Profil ve Hedef Kartı */}
         <section>
           {calorieTarget === 0 ? (
             <ProfileForm onCalculate={(t, n) => { setCalorieTarget(t); setUserName(n); }} />
@@ -215,35 +277,61 @@ export default function Home() {
           )}
         </section>
 
+        {/* Besin Barı */}
         <section>
           <NutrientBar current={dailyTotal} target={calorieTarget} />
         </section>
         
-        <section className="bg-white p-6 rounded-[2.5rem] shadow-xl border border-slate-100">
-          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Malzeme Girişi</label>
+        {/* ANA GİRİŞ ALANI (TABS İLE GÜNCELLENDİ) */}
+        <section className="bg-white p-6 rounded-[2.5rem] shadow-xl border border-slate-100 transition-all">
+          
+          {/* TAB (SEKME) YAPISI */}
+          <div className="flex bg-slate-100 p-1 rounded-2xl mb-4">
+             <button 
+               onClick={() => { setActiveTab('recipe'); setInputText(''); }}
+               className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'recipe' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+             >
+               🍳 Ne Pişirsem?
+             </button>
+             <button 
+               onClick={() => { setActiveTab('meal'); setInputText(''); }}
+               className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'meal' ? 'bg-white text-orange-500 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+             >
+               📝 Ne Yedim?
+             </button>
+          </div>
+
+          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">
+             {activeTab === 'recipe' ? 'Malzemelerin' : 'Bugün Neler Yedin?'}
+          </label>
+          
           <textarea 
             className="w-full bg-slate-50 border-none rounded-2xl p-4 text-slate-800 font-bold placeholder:text-slate-300 outline-none resize-none text-xl min-h-[120px] focus:ring-2 focus:ring-emerald-500/10 transition-all"
-            placeholder="Dolapta ne var? (Örn: Tavuk, soğan...)"
-            value={ingredients}
-            onChange={(e) => setIngredients(e.target.value)}
+            placeholder={activeTab === 'recipe' ? "Dolapta ne var? (Örn: Tavuk, soğan...)" : "Örn: Öğle yemeğinde 1 porsiyon İskender ve ayran içtim..."}
+            value={inputText}
+            onChange={(e) => setInputText(e.target.value)}
           />
+
           <button 
-            onClick={handleFindRecipes} 
+            onClick={activeTab === 'recipe' ? handleFindRecipes : handleAnalyzeMeal} 
             disabled={loading} 
-            className="w-full mt-4 h-16 bg-slate-900 hover:bg-slate-800 text-white font-black rounded-2xl shadow-lg shadow-slate-200 transition-all uppercase tracking-widest text-xs flex items-center justify-center gap-2 group disabled:opacity-90 overflow-hidden"
+            className={`w-full mt-4 h-16 text-white font-black rounded-2xl shadow-lg transition-all uppercase tracking-widest text-xs flex items-center justify-center gap-2 group disabled:opacity-90 overflow-hidden ${activeTab === 'recipe' ? 'bg-slate-900 hover:bg-slate-800 shadow-slate-200' : 'bg-orange-500 hover:bg-orange-600 shadow-orange-200'}`}
           >
             {loading ? (
-              <AILoading />
+              <AILoading mode={activeTab} />
             ) : (
               <div className="flex items-center gap-2 group-hover:scale-105 transition-transform">
-                <span>TARİF ÜRET</span>
-                <span className="text-lg group-hover:rotate-12 transition-transform">✨</span>
+                <span>{activeTab === 'recipe' ? 'TARİF ÜRET' : 'ANALİZ ET'}</span>
+                <span className="text-lg group-hover:rotate-12 transition-transform">
+                  {activeTab === 'recipe' ? '✨' : '📊'}
+                </span>
               </div>
             )}
           </button>
         </section>
 
-        {recipes.length > 0 && (
+        {/* TARİF SONUÇLARI (Sadece Recipe Modunda) */}
+        {activeTab === 'recipe' && recipes.length > 0 && (
           <section className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="flex justify-between items-center px-2">
               <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
@@ -255,7 +343,7 @@ export default function Home() {
                 <RecipeCard 
                   key={i} 
                   recipe={r} 
-                  onSave={() => handleSaveMeal(r)} 
+                  onSave={() => handleSaveRecipeAsMeal(r)} 
                   onBookmark={() => handleBookmark(r)}
                   onDetail={() => setSelectedRecipe(r)}
                 />
@@ -265,11 +353,21 @@ export default function Home() {
         )}
       </main>
 
+      {/* DETAY MODALI (Tarifler İçin) */}
       {selectedRecipe && (
         <RecipeDetail 
           recipe={selectedRecipe} 
           onClose={() => setSelectedRecipe(null)}
           onBookmark={() => handleBookmark(selectedRecipe)}
+        />
+      )}
+
+      {/* ANALİZ MODALI (Yemek Analizi İçin) */}
+      {analysisResult && (
+        <MealAnalysisModal 
+          data={analysisResult}
+          onClose={() => setAnalysisResult(null)}
+          onSave={handleConfirmAnalysis}
         />
       )}
 
