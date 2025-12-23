@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+// --- İçe Aktarmalar (Dosya Konumuna Göre) ---
 import ProfileForm from '../components/ProfileForm';
 import RecipeCard from '../components/RecipeCard';
 import RecipeDetail from '../components/RecipeDetail';
@@ -140,7 +141,8 @@ export default function Home() {
         calories: cleanCalories,
         protein: cleanProtein,
         carbs: cleanCarbs,
-        fats: cleanFats
+        fats: cleanFats,
+        recipe_data: recipe // Tüm tarifi buraya kaydediyoruz (Detaylarda görmek için)
       });
 
       if (error) {
@@ -148,7 +150,9 @@ export default function Home() {
         throw new Error(error.message);
       }
       
-      alert("Öğün günlüğüne eklendi! 🎉");
+      // Kullanıcı Dostu Mesaj
+      alert("Ellerine sağlık! 👨‍🍳\nBu yemek günlüğüne başarıyla kaydedildi.");
+      
       setDailyTotal(prev => prev + cleanCalories);
 
     } catch (e: any) {
