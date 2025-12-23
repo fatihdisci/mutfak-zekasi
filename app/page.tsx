@@ -120,29 +120,31 @@ export default function Home() {
   const handleSaveMeal = async (recipe: any) => {
     if (!session) return;
     try {
-      // Verileri temizle (Örn: "20g" -> 20)
-      const parseNumber = (val: any) => {
+      // TEMİZLİK FONKSİYONU: "20g" -> 20, "500 kcal" -> 500
+      const cleanNumber = (val: any) => {
         if (typeof val === 'number') return val;
-        if (typeof val === 'string') return parseInt(val.replace(/[^0-9]/g, '')) || 0;
-        return 0;
+        if (!val) return 0;
+        // Sadece rakamları al, gerisini sil
+        const numbers = String(val).replace(/[^0-9]/g, ''); 
+        return parseInt(numbers) || 0;
       };
 
-      const cleanCalories = parseNumber(recipe.calories);
-      const cleanProtein = parseNumber(recipe.protein);
-      const cleanCarbs = parseNumber(recipe.carbs);
-      const cleanFats = parseNumber(recipe.fats);
+      const cleanCalories = cleanNumber(recipe.calories);
+      const cleanProtein = cleanNumber(recipe.protein);
+      const cleanCarbs = cleanNumber(recipe.carbs);
+      const cleanFats = cleanNumber(recipe.fats);
 
       const { error } = await supabase.from('meal_history').insert({
         user_id: session.user.id,
         name: recipe.title || recipe.name,
         calories: cleanCalories,
-        protein: cleanProtein, // Bu sütun veritabanında olmalı!
-        carbs: cleanCarbs,     // Bu sütun veritabanında olmalı!
-        fats: cleanFats        // Bu sütun veritabanında olmalı!
+        protein: cleanProtein,
+        carbs: cleanCarbs,
+        fats: cleanFats
       });
 
       if (error) {
-        console.error("Supabase Hatası:", error);
+        console.error("Supabase Hatası (Öğün):", error);
         throw new Error(error.message);
       }
       
@@ -168,7 +170,7 @@ export default function Home() {
       alert("Tarif deftere kaydedildi! ⭐");
     } catch (e: any) {
       console.error(e);
-      alert("Favorilere eklenirken hata: " + e.message);
+      alert("Deftere eklenirken hata: " + e.message);
     }
   };
 
