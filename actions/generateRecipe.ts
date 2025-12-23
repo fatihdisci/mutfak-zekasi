@@ -6,8 +6,9 @@ const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
 
 export async function getSmartRecipes(ingredients: string[], type: string) {
   try {
+    // --- GÜNCELLEME: En kararlı model olan 1.5-flash'a geri döndük ---
     const model = genAI.getGenerativeModel({ 
-      model: "gemini-2.5-flash",
+      model: "gemini-2.5-flash", 
       generationConfig: { responseMimeType: "application/json" }
     });
 
@@ -41,7 +42,7 @@ export async function getSmartRecipes(ingredients: string[], type: string) {
     const response = result.response;
     let text = response.text();
     
-    // Markdown temizliği (Olası ```json ... ``` hatalarını siler)
+    // Markdown ve fazlalık temizliği
     text = text.replace(/```json/g, '').replace(/```/g, '').trim();
     
     // JSON parse işlemi
@@ -50,12 +51,11 @@ export async function getSmartRecipes(ingredients: string[], type: string) {
       data = JSON.parse(text);
     } catch (parseError) {
       console.error("JSON Parse Hatası:", text);
-      return { error: "AI yanıtı okunamadı." };
+      return { error: "AI yanıtı okunamadı, lütfen tekrar dene." };
     }
 
-    // Eğer AI tek bir obje gönderirse, onu diziye çevir
+    // Dizi kontrolü (Tek bir tarif gelirse diziye çevir)
     if (!Array.isArray(data)) {
-        // Eğer data bir obje ise ve içinde 'recipes' gibi bir key varsa onu al, yoksa objeyi diziye sar
         if (data.recipes && Array.isArray(data.recipes)) {
             data = data.recipes;
         } else {
@@ -67,9 +67,6 @@ export async function getSmartRecipes(ingredients: string[], type: string) {
 
   } catch (error: any) {
     console.error("AI Genel Hatası:", error);
-    
-    // HATA AYIKLAMA İÇİN: Gerçek hatayı ekrana yansıtıyoruz
-    // Normalde kullanıcıya bu kadar detay verilmez ama sorunu bulmak için şart.
-    return { error: `Teknik Hata Detayı: ${error.message || error.toString()}` };
+    return { error: `Model Hatası: ${error.message || "Bilinmeyen bir hata oluştu."}` };
   }
 }
