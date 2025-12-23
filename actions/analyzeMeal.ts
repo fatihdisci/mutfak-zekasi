@@ -22,7 +22,7 @@ const analysisSchema = {
 export async function analyzeMeal(text: string) {
   try {
     const model = genAI.getGenerativeModel({
-      model: 'gemini-1.5-flash',
+      model: 'gemini-2.5-flash',
       generationConfig: {
         responseMimeType: 'application/json',
         responseSchema: analysisSchema,
@@ -43,7 +43,7 @@ export async function analyzeMeal(text: string) {
 
     const result = await model.generateContent(prompt);
     const responseText = result.response.text();
-    
+
     return JSON.parse(responseText);
 
   } catch (error: any) {
